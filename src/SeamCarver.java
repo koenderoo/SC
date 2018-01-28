@@ -1,6 +1,7 @@
 import edu.princeton.cs.algs4.Picture;
+// import edu.princeton.cs.algs4.StdOut;
 
-import java.util.Arrays;
+import java.awt.Color;
 
 public class SeamCarver {
 
@@ -36,33 +37,54 @@ public class SeamCarver {
 
     // energy of pixel at column x and row y
     public  double energy(int x, int y) {
-        if (x == 0 || y == 0 || x == width() || y == height()) return 1000;
+        if (x < 0 || x >= width()) {
+            throw new IndexOutOfBoundsException();
+        }
+
+        if (y < 0 || y >= height()) {
+            throw new IndexOutOfBoundsException();
+        }
+        if (x == 0 || y == 0 || x == width() -1|| y == height() -1) return 1000;
         return Math.sqrt(calculateEnergyOfX(x, y) + calculateEnergyOfY(x, y));
     }
 
     private int calculateEnergyOfX (int x, int y) {
-        int left = picture.getRGB(x - 1, y);
-        int right = picture.getRGB(x + 1, y);
-        int rX = ((right >> 16) & 0xFF) - ((left >> 16) & 0xFF);
-        int gX = ((right >> 8) & 0xFF) - ((left >> 8) & 0xFF);
-        int bX = ((right) & 0xFF) - ((left) & 0xFF);
-        return (rX * rX) + (gX * gX) + (bX * bX);
+        Color left = picture.get(x - 1, y);
+        Color right = picture.get(x + 1, y);
+        int rX = Math.abs(right.getRed() - left.getRed());
+        int gX = Math.abs(right.getGreen() - left.getGreen());
+        int bX = Math.abs(right.getBlue() - left.getBlue());
+        return rX * rX + gX * gX + bX * bX;
     }
 
     private int calculateEnergyOfY (int x, int y) {
-        int top = picture.getRGB(x, y -1);
-        int bottom = picture.getRGB(x, y -1);
-        int rY = ((bottom >> 16) & 0xFF) - ((top >> 16) & 0xFF);
-        int gY = ((bottom >> 8) & 0xFF) - ((top >> 8) & 0xFF);
-        int bY = ((bottom) & 0xFF) - ((top) & 0xFF);
-        return (rY * rY) + (gY * gY) + (bY * bY);
+        Color top = picture.get(x, y -1);
+        Color bottom = picture.get(x, y +1);
+        int rY = Math.abs(bottom.getRed() - top.getRed());
+        int gY = Math.abs(bottom.getGreen() - top.getGreen());
+        int bY = Math.abs(bottom.getBlue() - top.getBlue());
+        return rY * rY + gY * gY + bY * bY;
     }
 
     // sequence of indices for horizontal seam
     public   int[] findHorizontalSeam() {
-        picture.setOriginLowerLeft();
+        // Transpose picture.
+        Picture original = picture;
+        Picture transpose = new Picture(original.height(), original.width());
+
+        for (int w = 0; w < transpose.width(); w++) {
+            for (int h = 0; h < transpose.height(); h++) {
+                transpose.set(w, h, original.get(h, w));
+            }
+        }
+
+        this.picture = transpose;
+
         int[] seam =  findVerticalSeam();
-        picture.setOriginUpperLeft();
+
+        // Transpose back.
+        this.picture = original;
+
         return seam;
     }
 
@@ -76,9 +98,10 @@ public class SeamCarver {
             double energyOfSeam = 0.0;
             current[0] = x;
             for (int y = 1; y < height(); y++) {
-                if (allEnergy[x-1][y] <= allEnergy[x][y] && allEnergy[x-1][y] <= allEnergy[x+1][y]) current[y] = (x -1);
-                else if (allEnergy[x][y] <= allEnergy[x-1][y] && allEnergy[x][y] <= allEnergy[x+1][y]) current[y] = (x);
-                else current[y] = (x+1);
+                int runner = current[y-1];
+                if (allEnergy[runner-1][y] < allEnergy[runner][y] && allEnergy[runner-1][y] < allEnergy[runner+1][y]) current[y] = (runner -1);
+                else if (allEnergy[runner][y] <= allEnergy[runner-1][y] && allEnergy[runner][y] <= allEnergy[runner+1][y]) current[y] = (runner);
+                else current[y] = (runner+1);
                 energyOfSeam += allEnergy[current[y]][y];
             }
             if (energyOfSeam < least) {
@@ -91,9 +114,35 @@ public class SeamCarver {
 
     // remove horizontal seam from current picture
     public    void removeHorizontalSeam(int[] seam) {
-        picture.setOriginLowerLeft();
+        // Transpose picture.
+        Picture original = picture;
+        Picture transpose = new Picture(original.height(), original.width());
+
+        for (int w = 0; w < transpose.width(); w++) {
+            for (int h = 0; h < transpose.height(); h++) {
+                transpose.set(w, h, original.get(h, w));
+            }
+        }
+
+        this.picture = transpose;
+        transpose = null;
+        original = null;
+
         removeVerticalSeam(seam);
-        picture.setOriginUpperLeft();
+
+        // Transpose back.
+        original = picture;
+        transpose = new Picture(original.height(), original.width());
+
+        for (int w = 0; w < transpose.width(); w++) {
+            for (int h = 0; h < transpose.height(); h++) {
+                transpose.set(w, h, original.get(h, w));
+            }
+        }
+
+        this.picture = transpose;
+        transpose = null;
+        original = null;
     }
 
     // remove vertical seam from current picture
@@ -101,13 +150,71 @@ public class SeamCarver {
         double[][] newAllEnergy = new double[width()-1][height()];
         Picture original = this.picture;
         Picture newPicture = new Picture(width() -1, height());
-        for (int x = 0; x < width(); x ++) {
-            System.arraycopy(allEnergy[x], 0, newAllEnergy[x], 0, seam[x]);
-            newAllEnergy[x][seam[x]] = energy(x, seam[x]);
-            newAllEnergy[x + 1][seam[x]] = energy((x +1), seam[x]);
-
+        for (int y = 0; y < height(); y++) {
+            for (int x = 0; x < seam[y]; x++) {
+                newPicture.set(x, y, original.get(x, y));
+                newAllEnergy[x][y] = allEnergy[x][y];
+            }
+            for (int x = seam[y]; x < newPicture.width(); x++) {
+                newPicture.set(x, y, original.get(x + 1, y));
+                newAllEnergy[x][y] = allEnergy[x + 1][y];
+            }
         }
-        allEnergy = newAllEnergy;
+
+        this.picture = newPicture;
+        this.allEnergy = newAllEnergy;
+        // recalculate energy along the seam
+        for (int y = 0; y < height(); y++) {
+            allEnergy[seam[y]][y - 1] = energy(seam[y], y -1);
+            allEnergy[seam[y]][y] = energy(seam[y], y);
+        }
+
     }
+
+//    private static final boolean HORIZONTAL   = true;
+//    private static final boolean VERTICAL     = false;
+//
+//    private static void printSeam(SeamCarver carver, int[] seam, boolean direction) {
+//        double totalSeamEnergy = 0.0;
+//
+//        for (int row = 0; row < carver.height(); row++) {
+//            for (int col = 0; col < carver.width(); col++) {
+//                double energy = carver.energy(col, row);
+//                String marker = " ";
+//                if ((direction == HORIZONTAL && row == seam[col]) ||
+//                        (direction == VERTICAL   && col == seam[row])) {
+//                    marker = "*";
+//                    totalSeamEnergy += energy;
+//                }
+//                StdOut.printf("%7.2f%s ", energy, marker);
+//            }
+//            StdOut.println();
+//        }
+//        // StdOut.println();
+//        StdOut.printf("Total energy = %f\n", totalSeamEnergy);
+//        StdOut.println();
+//        StdOut.println();
+//    }
+//
+//    public static void main(String[] args) {
+//        Picture picture = new Picture("/10x10.png");
+//        StdOut.printf("image is %d pixels wide by %d pixels high.\n", picture.width(), picture.height());
+//
+//        SeamCarver carver = new SeamCarver(picture);
+//
+//        StdOut.printf("Vertical seam: { ");
+//        int[] verticalSeam = carver.findVerticalSeam();
+//        for (int x : verticalSeam)
+//            StdOut.print(x + " ");
+//        StdOut.println("}");
+//        printSeam(carver, verticalSeam, VERTICAL);
+//
+//        StdOut.printf("Horizontal seam: { ");
+//        int[] horizontalSeam = carver.findHorizontalSeam();
+//        for (int y : horizontalSeam)
+//            StdOut.print(y + " ");
+//        StdOut.println("}");
+//        printSeam(carver, horizontalSeam, HORIZONTAL);
+//    }
 
 }
