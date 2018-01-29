@@ -1,12 +1,12 @@
 import edu.princeton.cs.algs4.Picture;
-// import edu.princeton.cs.algs4.StdOut;
-
-import java.awt.Color;
+import edu.princeton.cs.algs4.StdOut;
 
 public class SeamCarver {
 
     private Picture picture;
     private double[][] allEnergy;
+    private double[][] energyTo;
+    private int[][] fromPixel;
 
     // create a seam carver object based on the given picture
     public SeamCarver(Picture picture) {
@@ -49,20 +49,20 @@ public class SeamCarver {
     }
 
     private int calculateEnergyOfX (int x, int y) {
-        Color left = picture.get(x - 1, y);
-        Color right = picture.get(x + 1, y);
-        int rX = Math.abs(right.getRed() - left.getRed());
-        int gX = Math.abs(right.getGreen() - left.getGreen());
-        int bX = Math.abs(right.getBlue() - left.getBlue());
+        int left = picture.getRGB(x - 1, y);
+        int right = picture.getRGB(x + 1, y);
+        int rX = ((right >> 16) & 0xFF) - ((left >> 16) & 0xFF);
+        int gX = ((right >> 8) & 0xFF) - ((left >> 8) & 0xFF);
+        int bX = ((right) & 0xFF) - ((left) & 0xFF);
         return rX * rX + gX * gX + bX * bX;
     }
 
     private int calculateEnergyOfY (int x, int y) {
-        Color top = picture.get(x, y -1);
-        Color bottom = picture.get(x, y +1);
-        int rY = Math.abs(bottom.getRed() - top.getRed());
-        int gY = Math.abs(bottom.getGreen() - top.getGreen());
-        int bY = Math.abs(bottom.getBlue() - top.getBlue());
+        int top = picture.getRGB(x, y -1);
+        int bottom = picture.getRGB(x, y -1);
+        int rY = ((bottom >> 16) & 0xFF) - ((top >> 16) & 0xFF);
+        int gY = ((bottom >> 8) & 0xFF) - ((top >> 8) & 0xFF);
+        int bY = ((bottom) & 0xFF) - ((top) & 0xFF);
         return rY * rY + gY * gY + bY * bY;
     }
 
@@ -91,27 +91,60 @@ public class SeamCarver {
     // sequence of indices for vertical seam
     public   int[] findVerticalSeam() {
         int[] result = new int[height()];
-        double least = Double.MAX_VALUE;
+        double least = Double.POSITIVE_INFINITY;
+        energyTo = new double[width()][height()];
+        fromPixel = new int[width()][height()];
 
-        for (int x = 1; x < width() - 1; x++) {
-            int[] current = new int[height()];
-            double energyOfSeam = 0.0;
-            current[0] = x;
-            for (int y = 1; y < height(); y++) {
-                int runner = current[y-1];
-                if (allEnergy[runner-1][y] < allEnergy[runner][y] && allEnergy[runner-1][y] < allEnergy[runner+1][y]) current[y] = (runner -1);
-                else if (allEnergy[runner][y] <= allEnergy[runner-1][y] && allEnergy[runner][y] <= allEnergy[runner+1][y]) current[y] = (runner);
-                else current[y] = (runner+1);
-                energyOfSeam += allEnergy[current[y]][y];
-            }
-            if (energyOfSeam < least) {
-                least = energyOfSeam;
-                result = current;
+        for (int x = 0; x < width(); x++) { // start a search at every first pixel in the first row (not including the first and last)
+            for (int y = 0; y < height(); y++) {
+                energyTo[x][y] = Double.POSITIVE_INFINITY;
             }
         }
+
+        for (int x =0; x < width(); x++) {
+            energyTo[x][0] = 1000;
+        }
+
+        for (int y =0; y < height() -1; y++){
+            for (int x = 0; x < width(); x++) {
+                if (x > 0) {
+                    relax(x, y, x -1, y + 1);
+                }
+                relax(x, y, x, y+ 1);
+
+                if (x < width() -1) {
+                    relax(x, y, x + 1, y + 1);
+                }
+            }
+        }
+
+        // vind de seam met de minste energy (is de fromPixel op de onderste rij met de laagste waarde)
+        int currentMin = -1;
+        for (int x = 0; x < width(); x ++) {
+            if(energyTo[x][height() - 1] < least) {
+                currentMin = x;
+                least = energyTo[x][height() -1];
+            }
+        }
+        // zet eerste waarde van x op de resultlijst als laatste
+        result[height() -1] = currentMin;
+
+        // loop terug via de energyTo
+        int prevX = fromPixel[currentMin][height() -1];
+        for (int y = height() - 2; y >= 0; y--) {
+            result[y] = prevX;
+            prevX = fromPixel[prevX][y];
+        }
+
         return result;
     }
 
+    private void relax (int x1, int y1, int x2, int y2) {
+        if (energyTo[x2][y2] > energyTo[x1][y1] + allEnergy[x2][y2]) {
+            energyTo[x2][y2] = energyTo[x1][y1] + allEnergy[x2][y2];
+            fromPixel[x2][y2] = x1;
+        }
+    }
     // remove horizontal seam from current picture
     public    void removeHorizontalSeam(int[] seam) {
         // Transpose picture.
@@ -171,50 +204,50 @@ public class SeamCarver {
 
     }
 
-//    private static final boolean HORIZONTAL   = true;
-//    private static final boolean VERTICAL     = false;
-//
-//    private static void printSeam(SeamCarver carver, int[] seam, boolean direction) {
-//        double totalSeamEnergy = 0.0;
-//
-//        for (int row = 0; row < carver.height(); row++) {
-//            for (int col = 0; col < carver.width(); col++) {
-//                double energy = carver.energy(col, row);
-//                String marker = " ";
-//                if ((direction == HORIZONTAL && row == seam[col]) ||
-//                        (direction == VERTICAL   && col == seam[row])) {
-//                    marker = "*";
-//                    totalSeamEnergy += energy;
-//                }
-//                StdOut.printf("%7.2f%s ", energy, marker);
-//            }
-//            StdOut.println();
-//        }
-//        // StdOut.println();
-//        StdOut.printf("Total energy = %f\n", totalSeamEnergy);
-//        StdOut.println();
-//        StdOut.println();
-//    }
-//
-//    public static void main(String[] args) {
-//        Picture picture = new Picture("/10x10.png");
-//        StdOut.printf("image is %d pixels wide by %d pixels high.\n", picture.width(), picture.height());
-//
-//        SeamCarver carver = new SeamCarver(picture);
-//
-//        StdOut.printf("Vertical seam: { ");
-//        int[] verticalSeam = carver.findVerticalSeam();
-//        for (int x : verticalSeam)
-//            StdOut.print(x + " ");
-//        StdOut.println("}");
-//        printSeam(carver, verticalSeam, VERTICAL);
-//
-//        StdOut.printf("Horizontal seam: { ");
-//        int[] horizontalSeam = carver.findHorizontalSeam();
-//        for (int y : horizontalSeam)
-//            StdOut.print(y + " ");
-//        StdOut.println("}");
-//        printSeam(carver, horizontalSeam, HORIZONTAL);
-//    }
+    private static final boolean HORIZONTAL   = true;
+    private static final boolean VERTICAL     = false;
+
+    private static void printSeam(SeamCarver carver, int[] seam, boolean direction) {
+        double totalSeamEnergy = 0.0;
+
+        for (int row = 0; row < carver.height(); row++) {
+            for (int col = 0; col < carver.width(); col++) {
+                double energy = carver.energy(col, row);
+                String marker = " ";
+                if ((direction == HORIZONTAL && row == seam[col]) ||
+                        (direction == VERTICAL   && col == seam[row])) {
+                    marker = "*";
+                    totalSeamEnergy += energy;
+                }
+                StdOut.printf("%7.2f%s ", energy, marker);
+            }
+            StdOut.println();
+        }
+        // StdOut.println();
+        StdOut.printf("Total energy = %f\n", totalSeamEnergy);
+        StdOut.println();
+        StdOut.println();
+    }
+
+    public static void main(String[] args) {
+        Picture picture = new Picture("/10x10.png");
+        StdOut.printf("image is %d pixels wide by %d pixels high.\n", picture.width(), picture.height());
+
+        SeamCarver carver = new SeamCarver(picture);
+
+        StdOut.printf("Vertical seam: { ");
+        int[] verticalSeam = carver.findVerticalSeam();
+        for (int x : verticalSeam)
+            StdOut.print(x + " ");
+        StdOut.println("}");
+        printSeam(carver, verticalSeam, VERTICAL);
+
+        StdOut.printf("Horizontal seam: { ");
+        int[] horizontalSeam = carver.findHorizontalSeam();
+        for (int y : horizontalSeam)
+            StdOut.print(y + " ");
+        StdOut.println("}");
+        printSeam(carver, horizontalSeam, HORIZONTAL);
+    }
 
 }
