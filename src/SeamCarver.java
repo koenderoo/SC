@@ -13,7 +13,7 @@ public class SeamCarver {
         if (picture == null) {
             throw new IllegalArgumentException();
         }
-        this.picture = picture;
+        this.picture = new Picture(picture);
         // calculate the energy of every pixel (once)
         allEnergy = new double[width()][height()];
         for (int x = 0; x < width(); x++) {
@@ -25,8 +25,7 @@ public class SeamCarver {
 
     // current picture
     public Picture picture() {
-        Picture newPicture = picture;
-        return newPicture;
+        return picture;
     }
 
     // width of current picture
@@ -48,7 +47,7 @@ public class SeamCarver {
         if (y < 0 || y >= height()) {
             throw new IllegalArgumentException();
         }
-        if (x == 0 || y == 0 || x == width() -1|| y == height() -1) return 1000;
+        if (x == 0 || y == 0 || x == width() -1 || y == height() -1) return 1000;
         return Math.sqrt(calculateEnergyOfX(x, y) + calculateEnergyOfY(x, y));
     }
 
@@ -120,11 +119,11 @@ public class SeamCarver {
             }
         }
 
-        for (int x =0; x < width(); x++) {
+        for (int x = 0; x < width(); x++) {
             energyTo[x][0] = 1000;
         }
 
-        for (int y =0; y < height() -1; y++){
+        for (int y = 0; y < height() -1; y++) {
             for (int x = 0; x < width(); x++) {
                 if (x > 0) {
                     relax(x, y, x -1, y + 1);
@@ -139,8 +138,8 @@ public class SeamCarver {
 
         // vind de seam met de minste energy (is de fromPixel op de onderste rij met de laagste waarde)
         int currentMin = -1;
-        for (int x = 0; x < width(); x ++) {
-            if(energyTo[x][height() - 1] < least) {
+        for (int x = 0; x < width(); x++) {
+            if (energyTo[x][height() - 1] < least) {
                 currentMin = x;
                 least = energyTo[x][height() -1];
             }
@@ -158,7 +157,7 @@ public class SeamCarver {
         return result;
     }
 
-    private void relax (int x1, int y1, int x2, int y2) {
+    private void relax(int x1, int y1, int x2, int y2) {
         if (energyTo[x2][y2] > energyTo[x1][y1] + allEnergy[x2][y2]) {
             energyTo[x2][y2] = energyTo[x1][y1] + allEnergy[x2][y2];
             fromPixel[x2][y2] = x1;
@@ -195,23 +194,32 @@ public class SeamCarver {
         this.picture = transpose;
         transpose = null;
         original = null;
+
+        // recalculate energy
+        allEnergy = new double[width()][height()];
+        for (int x = 0; x < width(); x++) {
+            for (int y = 0; y < height(); y++) {
+                allEnergy[x][y] = energy(x, y);
+            }
+        }
     }
 
     // remove vertical seam from current picture
     public    void removeVerticalSeam(int[] seam) {
-        /*
-        Test 9a: check removeVerticalSeam() with invalid seam * picture = 10x10.png
-        - fails to throw an exception when calling removeVerticalSeam() with an invalid seam
-        - failed on trial 1 of 100 - distance between pixel 5 and pixel 6 is 2
-        - invalid seam = { 9, 9, 9, 8, 7, 7, 5, 6, 7, 6 }
-        - distance between pixel 0 and pixel 1 is 2
-        - invalid seam length
-        - should throw a java.lang.IllegalArgumentException
-         - throws wrong exception when calling removeHorizontalSeam() with a null argument
-         - throws a java.lang.NullPointerException
-         - should throw a java.lang.IllegalArgumentException
-         */
-
+        // check null
+        if (seam == null) {
+            throw new IllegalArgumentException("Seam is null");
+        }
+        // check seam length
+        if (seam.length != height()) {
+            throw new IllegalArgumentException("Length of seam is not correct.");
+        }
+        // check distance between pixels
+        for (int x = 0; x < height() -1; x++) {
+            if (Math.abs(seam[x] - seam[x+1]) > 1) {
+                throw new IllegalArgumentException("Distance between pixel " + x  + " and " + (x + 1) + " is more the 1.");
+            }
+        }
         Picture original = this.picture;
         Picture newPicture = new Picture(width() -1, height());
         for (int y = 0; y < height(); y++) {
@@ -224,7 +232,7 @@ public class SeamCarver {
         }
 
         this.picture = newPicture;
-        // recalculate energy along the seam
+        // recalculate energy
         allEnergy = new double[width()][height()];
         for (int x = 0; x < width(); x++) {
             for (int y = 0; y < height(); y++) {
@@ -264,7 +272,6 @@ public class SeamCarver {
 //        StdOut.printf("image is %d pixels wide by %d pixels high.\n", picture.width(), picture.height());
 //
 //        SeamCarver carver = new SeamCarver(picture);
-//
 //        StdOut.printf("Vertical seam: { ");
 //        int[] verticalSeam = carver.findVerticalSeam();
 //        for (int x : verticalSeam)
